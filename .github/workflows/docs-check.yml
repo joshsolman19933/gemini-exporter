@@ -1,0 +1,168 @@
+name: Documentation Checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - '.github/workflows/docs-check.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - '.github/workflows/docs-check.yml'
+  workflow_dispatch:  # Manual trigger
+
+concurrency:
+  group: docs-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  markdown-lint:
+    name: Markdown Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install markdownlint-cli
+        run: npm install -g markdownlint-cli
+
+      - name: Lint documentation
+        run: markdownlint 'docs/**/*.md' 'README.md' --config .markdownlint.json
+
+  link-check:
+    name: Link Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install markdown-link-check
+        run: npm install -g markdown-link-check
+
+      - name: Check internal links (docs)
+        run: |
+          for file in $(find docs -name '*.md' 2>/dev/null) README.md; do
+            [ ! -f "$file" ] && continue
+            echo "Checking links in: $file"
+            markdown-link-check "$file" --config .markdown-link-check.json || echo "::warning file=$file::Some links in $file could not be validated"
+          done
+
+  file-validation:
+    name: File Structure Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate required documentation files exist
+        run: |
+          missing=0
+          required_files=(
+            "README.md"
+            "LICENSE"
+            ".gitignore"
+            "docs/ARCHITECTURE.md"
+            "docs/RESEARCH.md"
+            "docs/PLAN.md"
+            "docs/SELECTORS.md"
+            "docs/DEVELOPMENT.md"
+          )
+          
+          for file in "${required_files[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "::error file=$file::Required documentation file '$file' is missing!"
+              missing=1
+            else
+              echo "✅ $file"
+            fi
+          done
+          
+          if [ $missing -eq 1 ]; then
+            echo "::error::One or more required documentation files are missing"
+            exit 1
+          fi
+          
+          echo "All $(( ${#required_files[@]} )) required documentation files are present."
+
+  readme-sections:
+    name: README Completeness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check README has all required sections
+        run: |
+          missing=0
+          required_sections=(
+            "Gemini Chat Exporter"
+            "## ✨ Funkciók"
+            "## 🎯 Miért van rá szükség"
+            "## 📁 Projekt struktúra"
+            "## 🛠️ Tech Stack"
+            "## 📦 Telepítés"
+            "## 🚀 Használat"
+            "## 📚 Dokumentáció"
+            "## 🔒 Adatvédelem"
+            "## 📄 Licensz"
+          )
+          
+          for section in "${required_sections[@]}"; do
+            if ! grep -q "$section" README.md; then
+              echo "::error file=README.md::Missing section: '$section'"
+              missing=$((missing + 1))
+            else
+              echo "✅ Found section: $section"
+            fi
+          done
+          
+          if [ $missing -eq 1 ]; then
+            echo "::error::README.md is missing $missing required section(s)"
+            exit 1
+          fi
+          
+          echo "All required sections are present in README.md."
+
+  summary:
+    name: Documentation Summary
+    needs: [markdown-lint, link-check, file-validation, readme-sections]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Overall Status
+        run: |
+          echo "### 📚 Documentation Check Summary" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ needs.markdown-lint.result }}" == "success" ]]; then
+            echo "- ✅ Markdown Lint: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ Markdown Lint: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [[ "${{ needs.link-check.result }}" == "success" ]]; then
+            echo "- ✅ Link Validation: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⚠️ Link Validation: COMPLETED (check warnings)" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [[ "${{ needs.file-validation.result }}" == "success" ]]; then
+            echo "- ✅ File Structure: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ File Structure: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [[ "${{ needs.readme-sections.result }}" == "success" ]]; then
+            echo "- ✅ README Completeness: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ README Completeness: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi

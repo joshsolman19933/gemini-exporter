@@ -1,0 +1,20 @@
+{
+  "ignorePatterns": [
+    { "pattern": "^https://github.com/settings/tokens" },
+    { "pattern": "^https://chrome.google.com/webstore" },
+    { "pattern": "^https://addons.mozilla.org" },
+    { "pattern": "^https://takeout.google.com" },
+    { "pattern": "^https://myactivity.google.com" },
+    { "pattern": "^https://gemini.google.com" },
+    { "pattern": "^https://aistudio.google.com" },
+    { "pattern": "^chrome://extensions" },
+    { "pattern": "^about:debugging" }
+  ],
+  "replacementPatterns": [],
+  "httpHeaders": [],
+  "timeout": "20s",
+  "retryOn429": true,
+  "retryCount": 2,
+  "fallbackRetryDelay": "30s",
+  "aliveStatusCodes": [200, 201, 204, 301, 302, 304, 307, 308]
+}
